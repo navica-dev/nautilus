@@ -1,4 +1,4 @@
-package nautilus
+package plugins
 
 import (
 	"context"

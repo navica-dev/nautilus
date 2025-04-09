@@ -7,6 +7,7 @@ import (
 	"github.com/navica-dev/nautilus/internal/config"
 	"github.com/navica-dev/nautilus/pkg/enums"
 	"github.com/navica-dev/nautilus/pkg/logging"
+	"github.com/navica-dev/nautilus/plugins"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -221,7 +222,7 @@ func WithHealthcheckDelay(delay time.Duration) Option {
 }
 
 // WithPlugin adds a plugin to Nautilus
-func WithPlugin(plugin Plugin) Option {
+func WithPlugin(plugin plugins.Plugin) Option {
 	return func(n *Nautilus) error {
 		n.plugins = append(n.plugins, plugin)
 		return nil

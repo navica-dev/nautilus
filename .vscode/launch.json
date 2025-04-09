@@ -5,11 +5,18 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch Package",
+            "name": "Basic Example",
             "type": "go",
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/examples/basic"
+        },
+        {
+            "name": "Postgres Example",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/examples/postgres"
         }
     ]
 }

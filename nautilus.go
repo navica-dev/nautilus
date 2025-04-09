@@ -22,6 +22,7 @@ import (
 	"github.com/navica-dev/nautilus/internal/parallel"
 	"github.com/navica-dev/nautilus/pkg/enums"
 	"github.com/navica-dev/nautilus/pkg/interfaces"
+	"github.com/navica-dev/nautilus/plugins"
 )
 
 // Nautilus is the main orchestrator for operator execution
@@ -53,7 +54,7 @@ type Nautilus struct {
 	stopping     bool
 
 	// Plugins
-	plugins []Plugin
+	plugins []plugins.Plugin
 
 	// Logging
 	logger zerolog.Logger
@@ -66,7 +67,7 @@ func New(options ...Option) (*Nautilus, error) {
 		config:    &config.Config{},
 		startTime: time.Now(),
 		version:   "dev",
-		plugins:   make([]Plugin, 0),
+		plugins:   make([]plugins.Plugin, 0),
 	}
 
 	// Apply options
@@ -114,7 +115,7 @@ func (n *Nautilus) initialize() error {
 	return nil
 }
 
-func (n *Nautilus) RegisterPlugin(plugin Plugin) {
+func (n *Nautilus) RegisterPlugin(plugin plugins.Plugin) {
 	n.plugins = append(n.plugins, plugin)
 }
 
