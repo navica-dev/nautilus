@@ -131,6 +131,9 @@ func (n *Nautilus) Run(ctx context.Context, operator interfaces.Operator) error 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
+	done := make(chan struct{})
+	defer close(done)
+
 	// Handle signals in a separate goroutine
 	go func() {
 		select {
@@ -139,7 +142,11 @@ func (n *Nautilus) Run(ctx context.Context, operator interfaces.Operator) error 
 			n.Shutdown(ctx)
 		case <-ctx.Done():
 			// Context cancelled, clean shutdown
+		case <-done:
+			// Parent function is exiting, clean up
 		}
+		// Unregister signal handling to prevent leaks
+		signal.Stop(sigChan)
 	}()
 
 	// Initialize plugins
@@ -229,17 +236,19 @@ func (n *Nautilus) Run(ctx context.Context, operator interfaces.Operator) error 
 // executeRun performs a single execution of the operator
 func (n *Nautilus) executeRun(ctx context.Context, operator interfaces.Operator) error {
 	startTime := time.Now()
-	n.mu.Lock()
-	n.runCount++
-	currentRun := n.runCount
 
 	// Create run info
 	runID := uuid.New().String()
-	n.currentRun = &interfaces.RunInfo{
+	runInfo := &interfaces.RunInfo{
 		RunID:     runID,
 		StartTime: startTime,
 		Status:    enums.RunStatusRunning,
 	}
+
+	n.mu.Lock()
+	n.runCount++
+	currentRun := n.runCount
+	n.currentRun = runInfo
 	n.mu.Unlock()
 
 	// Create run context with timeout if configured
