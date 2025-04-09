@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/navica-dev/nautilus/internal/config"
+	"github.com/navica-dev/nautilus/pkg/enums"
 	"github.com/navica-dev/nautilus/pkg/logging"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -33,24 +34,24 @@ func WithConfig(cfg *config.Config) Option {
 	}
 }
 
-// WithName sets the robot name
+// WithName sets the operator name
 func WithName(name string) Option {
 	return func(n *Nautilus) error {
-		if n.config.Robot == nil {
-			n.config.Robot = &config.RobotConfig{}
+		if n.config.Operator == nil {
+			n.config.Operator = &config.OperatorConfig{}
 		}
-		n.config.Robot.Name = name
+		n.config.Operator.Name = name
 		return nil
 	}
 }
 
-// WithDescription sets the robot description
+// WithDescription sets the operator description
 func WithDescription(description string) Option {
 	return func(n *Nautilus) error {
-		if n.config.Robot == nil {
-			n.config.Robot = &config.RobotConfig{}
+		if n.config.Operator == nil {
+			n.config.Operator = &config.OperatorConfig{}
 		}
-		n.config.Robot.Description = description
+		n.config.Operator.Description = description
 		return nil
 	}
 }
@@ -63,7 +64,7 @@ func WithVersion(version string) Option {
 	}
 }
 
-// WithRunOnce configures Nautilus to run the robot once and exit
+// WithRunOnce configures Nautilus to run the operator once and exit
 func WithRunOnce(waitAfterCompletion bool) Option {
 	return func(n *Nautilus) error {
 		if n.config.Execution == nil {
@@ -168,18 +169,18 @@ func WithLogLevel(level string) Option {
 }
 
 // WithLogFormat sets the logging format
-func WithLogFormat(format string) Option {
+func WithLogFormat(format enums.LogFormatEnum) Option {
 	return func(n *Nautilus) error {
 		if n.config.Logging == nil {
 			n.config.Logging = &config.LoggingConfig{}
 		}
-		n.config.Logging.Format = format
+		n.config.Logging.Format = format.String()
 
 		// Apply the log format
 		switch format {
-		case "json":
+		case enums.LogFormatJson:
 			// JSON is the default for zerolog
-		case "console":
+		case enums.LogFormatConsole:
 			log.Logger = log.Output(zerolog.ConsoleWriter{Out: logging.DefaultOutput})
 		default:
 			return fmt.Errorf("unsupported log format: %s", format)
@@ -242,7 +243,7 @@ func WithSentry(enabled bool, dsn string) Option {
 
 		// Initialize Sentry if enabled
 		if enabled && dsn != "" {
-			if err := logging.SetupSentry(dsn, n.version, n.config.Robot.Name); err != nil {
+			if err := logging.SetupSentry(dsn, n.version, n.config.Operator.Name); err != nil {
 				return fmt.Errorf("failed to initialize Sentry: %w", err)
 			}
 		}

@@ -15,11 +15,11 @@ type Client struct {
 	config *config.MetricsConfig
 
 	// Prometheus metrics
-	robotRuns       *prometheus.CounterVec
-	robotRunsFailed *prometheus.CounterVec
-	robotRunLatency *prometheus.HistogramVec
-	workerPoolSize  *prometheus.GaugeVec
-	taskQueueSize   *prometheus.GaugeVec
+	operatorRuns       *prometheus.CounterVec
+	operatorRunsFailed *prometheus.CounterVec
+	operatorRunLatency *prometheus.HistogramVec
+	workerPoolSize     *prometheus.GaugeVec
+	taskQueueSize      *prometheus.GaugeVec
 
 	// Labels
 	labels map[string]string
@@ -42,29 +42,29 @@ func NewClient(cfg *config.MetricsConfig) *Client {
 
 // initPrometheus initializes Prometheus metrics
 func (c *Client) initPrometheus() {
-	c.robotRuns = promauto.NewCounterVec(
+	c.operatorRuns = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "nautilus_robot_runs_total",
-			Help: "Total number of robot executions",
+			Name: "nautilus_operator_runs_total",
+			Help: "Total number of operator executions",
 		},
-		[]string{"robot", "status"},
+		[]string{"operator", "status"},
 	)
 
-	c.robotRunsFailed = promauto.NewCounterVec(
+	c.operatorRunsFailed = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "nautilus_robot_runs_failed_total",
-			Help: "Total number of failed robot executions",
+			Name: "nautilus_operator_runs_failed_total",
+			Help: "Total number of failed operator executions",
 		},
-		[]string{"robot"},
+		[]string{"operator"},
 	)
 
-	c.robotRunLatency = promauto.NewHistogramVec(
+	c.operatorRunLatency = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "nautilus_robot_run_duration_seconds",
-			Help:    "Duration of robot executions in seconds",
+			Name:    "nautilus_operator_run_duration_seconds",
+			Help:    "Duration of operator executions in seconds",
 			Buckets: prometheus.ExponentialBuckets(0.1, 2, 10), // 0.1s to ~102s
 		},
-		[]string{"robot", "status"},
+		[]string{"operator", "status"},
 	)
 
 	c.workerPoolSize = promauto.NewGaugeVec(
@@ -72,7 +72,7 @@ func (c *Client) initPrometheus() {
 			Name: "nautilus_worker_pool_size",
 			Help: "Current size of the worker pool",
 		},
-		[]string{"robot"},
+		[]string{"operator"},
 	)
 
 	c.taskQueueSize = promauto.NewGaugeVec(
@@ -80,70 +80,70 @@ func (c *Client) initPrometheus() {
 			Name: "nautilus_task_queue_size",
 			Help: "Current size of the task queue",
 		},
-		[]string{"robot"},
+		[]string{"operator"},
 	)
 
 	log.Debug().Msg("Prometheus metrics initialized")
 }
 
-// RegisterBasicMetrics sets up basic metrics for a robot
-func (c *Client) RegisterBasicMetrics(robotName string) {
-	c.labels["robot"] = robotName
+// RegisterBasicMetrics sets up basic metrics for a operator
+func (c *Client) RegisterBasicMetrics(operatorName string) {
+	c.labels["operator"] = operatorName
 
 	// Initialize counters with 0 values to ensure they appear in Prometheus
-	if c.robotRuns != nil {
-		c.robotRuns.WithLabelValues(robotName, "success").Add(0)
-		c.robotRuns.WithLabelValues(robotName, "failure").Add(0)
+	if c.operatorRuns != nil {
+		c.operatorRuns.WithLabelValues(operatorName, "success").Add(0)
+		c.operatorRuns.WithLabelValues(operatorName, "failure").Add(0)
 	}
 
-	if c.robotRunsFailed != nil {
-		c.robotRunsFailed.WithLabelValues(robotName).Add(0)
+	if c.operatorRunsFailed != nil {
+		c.operatorRunsFailed.WithLabelValues(operatorName).Add(0)
 	}
 
-	log.Debug().Str("robot", robotName).Msg("Basic metrics registered")
+	log.Debug().Str("operator", operatorName).Msg("Basic metrics registered")
 }
 
-// RecordRunStart records the start of a robot run
+// RecordRunStart records the start of a operator run
 func (c *Client) RecordRunStart() {
 	// Nothing to record at start time for Prometheus
 	// This is a hook for other metrics systems that might need it
 }
 
-// RecordRunSuccess records a successful robot run
+// RecordRunSuccess records a successful operator run
 func (c *Client) RecordRunSuccess(duration time.Duration) {
 	if !c.config.Enabled {
 		return
 	}
 
-	robotName := c.labels["robot"]
+	operatorName := c.labels["operator"]
 
-	if c.robotRuns != nil {
-		c.robotRuns.WithLabelValues(robotName, "success").Inc()
+	if c.operatorRuns != nil {
+		c.operatorRuns.WithLabelValues(operatorName, "success").Inc()
 	}
 
-	if c.robotRunLatency != nil {
-		c.robotRunLatency.WithLabelValues(robotName, "success").Observe(duration.Seconds())
+	if c.operatorRunLatency != nil {
+		c.operatorRunLatency.WithLabelValues(operatorName, "success").Observe(duration.Seconds())
 	}
 }
 
-// RecordRunFailure records a failed robot run
+// RecordRunFailure records a failed operator run
 func (c *Client) RecordRunFailure(duration time.Duration) {
 	if !c.config.Enabled {
 		return
 	}
 
-	robotName := c.labels["robot"]
+	operatorName := c.labels["operator"]
 
-	if c.robotRuns != nil {
-		c.robotRuns.WithLabelValues(robotName, "failure").Inc()
+	if c.operatorRuns != nil {
+		c.operatorRuns.WithLabelValues(operatorName, "failure").Inc()
 	}
 
-	if c.robotRunsFailed != nil {
-		c.robotRunsFailed.WithLabelValues(robotName).Inc()
+	if c.operatorRunsFailed != nil {
+		c.operatorRunsFailed.WithLabelValues(operatorName).Inc()
 	}
 
-	if c.robotRunLatency != nil {
-		c.robotRunLatency.WithLabelValues(robotName, "failure").Observe(duration.Seconds())
+	if c.operatorRunLatency != nil {
+		c.operatorRunLatency.WithLabelValues(operatorName, "failure").Observe(duration.Seconds())
 	}
 }
 
@@ -153,10 +153,10 @@ func (c *Client) RecordWorkerPoolSize(size int) {
 		return
 	}
 
-	robotName := c.labels["robot"]
+	operatorName := c.labels["operator"]
 
 	if c.workerPoolSize != nil {
-		c.workerPoolSize.WithLabelValues(robotName).Set(float64(size))
+		c.workerPoolSize.WithLabelValues(operatorName).Set(float64(size))
 	}
 }
 
@@ -166,10 +166,10 @@ func (c *Client) RecordTaskQueueSize(size int) {
 		return
 	}
 
-	robotName := c.labels["robot"]
+	operatorName := c.labels["operator"]
 
 	if c.taskQueueSize != nil {
-		c.taskQueueSize.WithLabelValues(robotName).Set(float64(size))
+		c.taskQueueSize.WithLabelValues(operatorName).Set(float64(size))
 	}
 }
 

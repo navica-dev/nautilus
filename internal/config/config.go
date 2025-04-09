@@ -8,7 +8,7 @@ import (
 
 // Config represents the complete configuration for Nautilus
 type Config struct {
-	Robot     *RobotConfig     `mapstructure:"robot"`
+	Operator  *OperatorConfig  `mapstructure:"operator"`
 	Execution *ExecutionConfig `mapstructure:"execution"`
 	API       *APIConfig       `mapstructure:"api"`
 	Logging   *LoggingConfig   `mapstructure:"logging"`
@@ -17,14 +17,14 @@ type Config struct {
 	Health    *HealthConfig    `mapstructure:"health"`
 }
 
-// RobotConfig contains robot-specific configuration
-type RobotConfig struct {
+// OperatorConfig contains operator-specific configuration
+type OperatorConfig struct {
 	Name        string                 `mapstructure:"name"`
 	Description string                 `mapstructure:"description"`
 	Parameters  map[string]interface{} `mapstructure:"parameters"`
 }
 
-// ExecutionConfig controls how the robot is executed
+// ExecutionConfig controls how the operator is executed
 type ExecutionConfig struct {
 	// Schedule using cron expression (takes precedence over Interval if set)
 	Schedule string `mapstructure:"schedule"`
@@ -32,7 +32,7 @@ type ExecutionConfig struct {
 	// Simple interval for periodic execution
 	Interval time.Duration `mapstructure:"interval"`
 
-	// RunOnce executes the robot once and then stops
+	// RunOnce executes the operator once and then stops
 	RunOnce bool `mapstructure:"runOnce"`
 
 	// WaitAfterCompletion keeps the process running after completion
@@ -160,9 +160,9 @@ func LoadConfig(configPath string) (*Config, error) {
 	}
 
 	// Ensure required structures exist
-	if config.Robot == nil {
-		config.Robot = &RobotConfig{
-			Name: "nautilus-robot",
+	if config.Operator == nil {
+		config.Operator = &OperatorConfig{
+			Name: "nautilus-operator",
 		}
 	}
 
@@ -181,9 +181,9 @@ func LoadConfig(configPath string) (*Config, error) {
 
 	if config.API == nil {
 		config.API = &APIConfig{
-			Enabled: true,
-			Port:    12911,
-			Path:    "/health",
+			Enabled:   true,
+			Port:      12911,
+			Path:      "/health",
 			DebugMode: false,
 		}
 	}
@@ -213,8 +213,8 @@ func LoadConfig(configPath string) (*Config, error) {
 
 // setDefaults sets sensible default values for configuration
 func setDefaults(v *viper.Viper) {
-	// Robot defaults
-	v.SetDefault("robot.name", "nautilus-robot")
+	// Operator defaults
+	v.SetDefault("operator.name", "nautilus-operator")
 
 	// Execution defaults
 	v.SetDefault("execution.runOnce", true)

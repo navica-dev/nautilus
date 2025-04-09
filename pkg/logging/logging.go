@@ -25,17 +25,17 @@ func Setup() {
 	zerolog.SetGlobalLevel(level)
 
 	// Configure console logger with colors
-	if os.Getenv("NAUTILUS_LOGGING_FORMAT") != "json" {
-		log.Logger = log.Output(zerolog.ConsoleWriter{
-			Out:        DefaultOutput,
-			TimeFormat: time.RFC3339,
-		})
-	}
+	// if os.Getenv("NAUTILUS_LOGGING_FORMAT") != "json" {
+	// 	log.Logger = log.Output(zerolog.ConsoleWriter{
+	// 		Out:        DefaultOutput,
+	// 		TimeFormat: time.RFC3339,
+	// 	})
+	// }
 
 	// Add global fields
 	hostname, _ := os.Hostname()
 	log.Logger = log.With().
-		Str("service", os.Getenv("NAUTILUS_ROBOT_NAME")).
+		Str("service", os.Getenv("NAUTILUS_OPERATOR_NAME")).
 		Str("host", hostname).
 		Logger()
 

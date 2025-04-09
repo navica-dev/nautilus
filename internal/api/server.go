@@ -10,7 +10,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/navica-dev/nautilus/internal/config"
-	"github.com/navica-dev/nautilus/pkg/interfaces"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -24,7 +23,7 @@ type Server struct {
 	logger zerolog.Logger
 
 	// Health check handlers
-	healthCheckers []interfaces.HealthCheck
+	healthCheckers []HealthCheck
 
 	// Version info
 	version string
@@ -32,15 +31,6 @@ type Server struct {
 	// Start time
 	startTime time.Time
 }
-
-// // HealthChecker is the interface for components that provide health status
-// type HealthChecker interface {
-// 	// Name returns a unique identifier for this health check
-// 	Name() string
-
-// 	// Check performs the health check
-// 	Check(ctx context.Context) error
-// }
 
 // HealthResponse represents the health check response format
 type HealthResponse struct {
@@ -74,7 +64,7 @@ func NewServer(cfg *config.APIConfig, version string) *Server {
 		router:         r,
 		config:         cfg,
 		logger:         logger,
-		healthCheckers: make([]interfaces.HealthCheck, 0),
+		healthCheckers: make([]HealthCheck, 0),
 		version:        version,
 		startTime:      time.Now(),
 	}
@@ -92,7 +82,7 @@ func NewServer(cfg *config.APIConfig, version string) *Server {
 }
 
 // RegisterHealthChecker adds a health checker to the server
-func (s *Server) RegisterHealthChecker(checker interfaces.HealthCheck) {
+func (s *Server) RegisterHealthChecker(checker HealthCheck) {
 	s.healthCheckers = append(s.healthCheckers, checker)
 }
 

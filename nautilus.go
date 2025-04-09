@@ -24,7 +24,7 @@ import (
 	"github.com/navica-dev/nautilus/pkg/interfaces"
 )
 
-// Nautilus is the main orchestrator for robot execution
+// Nautilus is the main orchestrator for operator execution
 type Nautilus struct {
 	// Configuration
 	config *config.Config
@@ -66,7 +66,6 @@ func New(options ...Option) (*Nautilus, error) {
 		config:    &config.Config{},
 		startTime: time.Now(),
 		version:   "dev",
-		logger:    log.With().Str("component", "nautilus-core").Logger(),
 		plugins:   make([]Plugin, 0),
 	}
 
@@ -76,6 +75,8 @@ func New(options ...Option) (*Nautilus, error) {
 			return nil, err
 		}
 	}
+
+	n.logger = log.With().Str("component", "nautilus-core").Str("operator", n.config.Operator.Name).Logger()
 
 	// Validate and initialize components
 	if err := n.initialize(); err != nil {
@@ -99,7 +100,7 @@ func (n *Nautilus) initialize() error {
 	// Set up metrics client
 	if n.config.Metrics.Enabled {
 		n.metricsClient = metrics.NewClient(n.config.Metrics)
-		n.metricsClient.RegisterBasicMetrics(n.config.Robot.Name)
+		n.metricsClient.RegisterBasicMetrics(n.config.Operator.Name)
 	}
 
 	// Set up API server for health checks
@@ -117,11 +118,10 @@ func (n *Nautilus) RegisterPlugin(plugin Plugin) {
 	n.plugins = append(n.plugins, plugin)
 }
 
-func (n *Nautilus) Run(ctx context.Context, robot interfaces.Robot) error {
+func (n *Nautilus) Run(ctx context.Context, operator interfaces.Operator) error {
 	n.logger.Info().
-		Str("robot", n.config.Robot.Name).
 		Str("version", n.version).
-		Msg("Starting robot ...")
+		Msg("Starting operator")
 
 	// Create a cancellation context
 	ctx, cancel := context.WithCancel(ctx)
@@ -157,21 +157,21 @@ func (n *Nautilus) Run(ctx context.Context, robot interfaces.Robot) error {
 		}()
 	}
 
-	// Initialize the robot
-	n.logger.Info().Msg("Initializing robot ...")
-	if err := robot.Initialize(ctx); err != nil {
-		return fmt.Errorf("robot initialization failed: %w", err)
+	// Initialize the operator
+	n.logger.Info().Msg("Initializing operator")
+	if err := operator.Initialize(ctx); err != nil {
+		return fmt.Errorf("operator initialization failed: %w", err)
 	}
 
 	// Register health check if supported
-	if healthChecker, ok := robot.(interfaces.HealthCheck); ok && n.apiServer != nil {
+	if healthChecker, ok := operator.(api.HealthCheck); ok && n.apiServer != nil {
 		n.apiServer.RegisterHealthChecker(healthChecker)
 	}
 
 	// Execute based on configuration
 	if n.config.Execution.RunOnce {
 		// Run once and exit (unless WaitAfterCompletion is true)
-		err := n.executeRun(ctx, robot)
+		err := n.executeRun(ctx, operator)
 
 		if !n.config.Execution.WaitAfterCompletion {
 			n.Shutdown(ctx)
@@ -184,7 +184,7 @@ func (n *Nautilus) Run(ctx context.Context, robot interfaces.Robot) error {
 	} else if n.config.Execution.Schedule != "" {
 		// Use cron scheduler
 		_, err := n.cron.AddFunc(n.config.Execution.Schedule, func() {
-			if err := n.executeRun(ctx, robot); err != nil {
+			if err := n.executeRun(ctx, operator); err != nil {
 				n.logger.Error().Err(err).Msg("Scheduled run failed")
 			}
 		})
@@ -200,14 +200,14 @@ func (n *Nautilus) Run(ctx context.Context, robot interfaces.Robot) error {
 			defer ticker.Stop()
 
 			// Execute immediately on start
-			if err := n.executeRun(ctx, robot); err != nil {
+			if err := n.executeRun(ctx, operator); err != nil {
 				n.logger.Error().Err(err).Msg("Initial run failed")
 			}
 
 			for {
 				select {
 				case <-ticker.C:
-					if err := n.executeRun(ctx, robot); err != nil {
+					if err := n.executeRun(ctx, operator); err != nil {
 						n.logger.Error().Err(err).Msg("Periodic run failed")
 					}
 				case <-ctx.Done():
@@ -223,11 +223,11 @@ func (n *Nautilus) Run(ctx context.Context, robot interfaces.Robot) error {
 	<-ctx.Done()
 
 	// Clean shutdown
-	return n.performTermination(ctx, robot)
+	return n.performTermination(operator)
 }
 
-// executeRun performs a single execution of the robot
-func (n *Nautilus) executeRun(ctx context.Context, robot interfaces.Robot) error {
+// executeRun performs a single execution of the operator
+func (n *Nautilus) executeRun(ctx context.Context, operator interfaces.Operator) error {
 	startTime := time.Now()
 	n.mu.Lock()
 	n.runCount++
@@ -259,14 +259,14 @@ func (n *Nautilus) executeRun(ctx context.Context, robot interfaces.Robot) error
 		Int("run", currentRun).
 		Str("run_id", runID).
 		Time("start_time", startTime).
-		Msg("Starting robot run")
+		Msg("Starting operator run")
 
 	if n.metricsClient != nil {
 		n.metricsClient.RecordRunStart()
 	}
 
-	// Execute the robot
-	err := robot.Run(runCtx)
+	// Execute the operator
+	err := operator.Run(runCtx)
 
 	// Update metrics and run info
 	duration := time.Since(startTime)
@@ -306,7 +306,7 @@ func (n *Nautilus) executeRun(ctx context.Context, robot interfaces.Robot) error
 		Str("run_id", runID).
 		Dur("duration", duration).
 		Time("end_time", time.Now()).
-		Msg("Robot run completed")
+		Msg("Operator run completed")
 
 	return err
 }
@@ -320,7 +320,7 @@ func (n *Nautilus) initializePlugins(ctx context.Context) error {
 		}
 
 		// Register health check if plugin implements HealthCheck interface
-		if healthChecker, ok := plugin.(interfaces.HealthCheck); ok && n.apiServer != nil {
+		if healthChecker, ok := plugin.(api.HealthCheck); ok && n.apiServer != nil {
 			n.apiServer.RegisterHealthChecker(healthChecker)
 		}
 	}
@@ -369,13 +369,13 @@ func (n *Nautilus) Shutdown(ctx context.Context) {
 	})
 }
 
-// performTermination handles robot termination
-func (n *Nautilus) performTermination(ctx context.Context, robot interfaces.Robot) error {
+// performTermination handles operator termination
+func (n *Nautilus) performTermination(operator interfaces.Operator) error {
 	terminateCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	n.logger.Info().Msgf("Terminating robot")
-	return robot.Terminate(terminateCtx)
+	n.logger.Info().Msgf("Terminating operator")
+	return operator.Terminate(terminateCtx)
 }
 
 // Execute Parallel runs a function in the worker pool
@@ -417,7 +417,7 @@ func (n *Nautilus) GetUptime() time.Duration {
 }
 
 // --- Heath Checker ---
-var _ interfaces.HealthCheck = (*Nautilus)(nil)
+var _ api.HealthCheck = (*Nautilus)(nil)
 
 func (n *Nautilus) Name() string {
 	return "nautilus-core"
