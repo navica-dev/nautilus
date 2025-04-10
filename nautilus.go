@@ -112,6 +112,11 @@ func (n *Nautilus) initialize() error {
 		n.apiServer.RegisterHealthChecker(n)
 	}
 
+	// Automatically disable run once if interval is set
+	if n.config.Execution.Interval > 0 {
+		n.config.Execution.RunOnce = false
+	}
+
 	return nil
 }
 
@@ -261,8 +266,10 @@ func (n *Nautilus) executeRun(ctx context.Context, operator interfaces.Operator)
 	}
 
 	// Enrich context with run info
-	runCtx = context.WithValue(runCtx, "nautilus_run_id", runID)
-	runCtx = context.WithValue(runCtx, "nautilus_run_count", currentRun)
+	type nautilusRunID string
+	runCtx = context.WithValue(runCtx, nautilusRunID("nautilus_run_id"), runID)
+	type nautilusRunCount string
+	runCtx = context.WithValue(runCtx, nautilusRunCount("nautilus_run_count"), currentRun)
 
 	// Track metrics
 	n.logger.Info().
