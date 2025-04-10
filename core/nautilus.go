@@ -1,4 +1,4 @@
-package nautilus
+package core
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 	"github.com/navica-dev/nautilus/internal/parallel"
 	"github.com/navica-dev/nautilus/pkg/enums"
 	"github.com/navica-dev/nautilus/pkg/interfaces"
-	"github.com/navica-dev/nautilus/plugins"
+	"github.com/navica-dev/nautilus/pkg/plugin"
 )
 
 // Nautilus is the main orchestrator for operator execution
@@ -54,7 +54,7 @@ type Nautilus struct {
 	stopping     bool
 
 	// Plugins
-	plugins []plugins.Plugin
+	plugins plugin.PluginRegistry
 
 	// Logging
 	logger zerolog.Logger
@@ -67,7 +67,7 @@ func New(options ...Option) (*Nautilus, error) {
 		config:    &config.Config{},
 		startTime: time.Now(),
 		version:   "dev",
-		plugins:   make([]plugins.Plugin, 0),
+		plugins:   *plugin.NewPluginRegistry(),
 	}
 
 	// Apply options
@@ -120,8 +120,8 @@ func (n *Nautilus) initialize() error {
 	return nil
 }
 
-func (n *Nautilus) RegisterPlugin(plugin plugins.Plugin) {
-	n.plugins = append(n.plugins, plugin)
+func (n *Nautilus) RegisterPlugin(plugin plugin.Plugin) {
+	n.plugins.Register(plugin)
 }
 
 func (n *Nautilus) Run(ctx context.Context, operator interfaces.Operator) error {
@@ -156,10 +156,10 @@ func (n *Nautilus) Run(ctx context.Context, operator interfaces.Operator) error 
 	}()
 
 	// Initialize plugins
-	if err := n.initializePlugins(ctx); err != nil {
+	if err := n.plugins.InitializeAll(ctx); err != nil {
 		return fmt.Errorf("plugin initialization failed: %w", err)
 	}
-	defer n.terminatePlugins(ctx)
+	defer n.plugins.TerminateAll(ctx)
 
 	// Start API server if enabled
 	if n.apiServer != nil {
@@ -177,7 +177,7 @@ func (n *Nautilus) Run(ctx context.Context, operator interfaces.Operator) error 
 	}
 
 	// Register health check if supported
-	if healthChecker, ok := operator.(api.HealthCheck); ok && n.apiServer != nil {
+	if healthChecker, ok := operator.(interfaces.HealthCheck); ok && n.apiServer != nil {
 		n.apiServer.RegisterHealthChecker(healthChecker)
 	}
 
@@ -328,33 +328,6 @@ func (n *Nautilus) executeRun(ctx context.Context, operator interfaces.Operator)
 	return err
 }
 
-// initializePlugins initializes all registered plugins
-func (n *Nautilus) initializePlugins(ctx context.Context) error {
-	for _, plugin := range n.plugins {
-		n.logger.Debug().Str("plugin", plugin.Name()).Msg("Initializing plugin")
-		if err := plugin.Initialize(ctx); err != nil {
-			return fmt.Errorf("failed to initialize plugin %s: %w", plugin.Name(), err)
-		}
-
-		// Register health check if plugin implements HealthCheck interface
-		if healthChecker, ok := plugin.(api.HealthCheck); ok && n.apiServer != nil {
-			n.apiServer.RegisterHealthChecker(healthChecker)
-		}
-	}
-
-	return nil
-}
-
-// terminatePlugins terminates all registered plugins
-func (n *Nautilus) terminatePlugins(ctx context.Context) {
-	for _, plugin := range n.plugins {
-		n.logger.Debug().Str("plugin", plugin.Name()).Msg("Terminating plugin")
-		if err := plugin.Terminate(ctx); err != nil {
-			n.logger.Error().Err(err).Str("plugin", plugin.Name()).Msg("Failed to terminate plugin")
-		}
-	}
-}
-
 // Shutdown initiates a graceful shutdown of Nautilus
 func (n *Nautilus) Shutdown(ctx context.Context) {
 	n.shutdownOnce.Do(func() {
@@ -434,7 +407,7 @@ func (n *Nautilus) GetUptime() time.Duration {
 }
 
 // --- Heath Checker ---
-var _ api.HealthCheck = (*Nautilus)(nil)
+var _ interfaces.HealthCheck = (*Nautilus)(nil)
 
 func (n *Nautilus) Name() string {
 	return "nautilus-core"

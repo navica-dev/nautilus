@@ -3,6 +3,7 @@ package config
 import (
 	"time"
 
+	"github.com/navica-dev/nautilus/pkg/enums"
 	"github.com/spf13/viper"
 )
 
@@ -69,24 +70,8 @@ type TLSConfig struct {
 
 // LoggingConfig controls logging behavior
 type LoggingConfig struct {
-	Level  string `mapstructure:"level"`
-	Format string `mapstructure:"format"` // json, console, gelf
-
-	Sentry *SentryConfig `mapstructure:"sentry"`
-	GELF   *GELFConfig   `mapstructure:"gelf"`
-}
-
-// SentryConfig controls Sentry error reporting
-type SentryConfig struct {
-	Enabled bool   `mapstructure:"enabled"`
-	DSN     string `mapstructure:"dsn"`
-}
-
-// GELFConfig controls GELF logging
-type GELFConfig struct {
-	Enabled bool   `mapstructure:"enabled"`
-	Host    string `mapstructure:"host"`
-	Port    int    `mapstructure:"port"`
+	Level  string              `mapstructure:"level"`
+	Format enums.LogFormatEnum `mapstructure:"format"` // json, console
 }
 
 // MetricsConfig controls metrics collection

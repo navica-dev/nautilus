@@ -7,6 +7,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq" // PostgreSQL driver
+	"github.com/navica-dev/nautilus/pkg/plugin"
 	"github.com/rs/zerolog/log"
 )
 
@@ -174,4 +175,4 @@ func (p *PostgresPlugin) CreateTransaction(ctx context.Context) (*sql.Tx, error)
 	return p.db.BeginTx(ctx, nil)
 }
 
-var _ DatabasePlugin = (*PostgresPlugin)(nil)
+var _ plugin.DatabasePlugin = (*PostgresPlugin)(nil)

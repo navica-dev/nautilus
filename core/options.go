@@ -1,4 +1,4 @@
-package nautilus
+package core
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"github.com/navica-dev/nautilus/internal/config"
 	"github.com/navica-dev/nautilus/pkg/enums"
 	"github.com/navica-dev/nautilus/pkg/logging"
-	"github.com/navica-dev/nautilus/plugins"
+	"github.com/navica-dev/nautilus/pkg/plugin"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -175,7 +175,7 @@ func WithLogFormat(format enums.LogFormatEnum) Option {
 		if n.config.Logging == nil {
 			n.config.Logging = &config.LoggingConfig{}
 		}
-		n.config.Logging.Format = format.String()
+		n.config.Logging.Format = format
 
 		// Apply the log format
 		switch format {
@@ -222,33 +222,9 @@ func WithHealthcheckDelay(delay time.Duration) Option {
 }
 
 // WithPlugin adds a plugin to Nautilus
-func WithPlugin(plugin plugins.Plugin) Option {
+func WithPlugin(plugin plugin.Plugin) Option {
 	return func(n *Nautilus) error {
-		n.plugins = append(n.plugins, plugin)
-		return nil
-	}
-}
-
-// WithSentry configures Sentry error reporting
-func WithSentry(enabled bool, dsn string) Option {
-	return func(n *Nautilus) error {
-		if n.config.Logging == nil {
-			n.config.Logging = &config.LoggingConfig{}
-		}
-		if n.config.Logging.Sentry == nil {
-			n.config.Logging.Sentry = &config.SentryConfig{}
-		}
-
-		n.config.Logging.Sentry.Enabled = enabled
-		n.config.Logging.Sentry.DSN = dsn
-
-		// Initialize Sentry if enabled
-		if enabled && dsn != "" {
-			if err := logging.SetupSentry(dsn, n.version, n.config.Operator.Name); err != nil {
-				return fmt.Errorf("failed to initialize Sentry: %w", err)
-			}
-		}
-
+		n.plugins.Register(plugin)
 		return nil
 	}
 }

@@ -8,8 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/navica-dev/nautilus"
-	"github.com/navica-dev/nautilus/internal/api"
+	"github.com/navica-dev/nautilus/core"
 	"github.com/navica-dev/nautilus/pkg/enums"
 	"github.com/navica-dev/nautilus/pkg/interfaces"
 	"github.com/navica-dev/nautilus/pkg/logging"
@@ -59,17 +58,17 @@ func main() {
 	}
 
 	// Create Nautilus instance
-	n, err := nautilus.New(
-		nautilus.WithConfigPath(configPath),
-		nautilus.WithName(op.name),
-		nautilus.WithDescription(op.description),
-		nautilus.WithVersion("0.0.1"),
-		nautilus.WithLogLevel(zerolog.LevelDebugValue),
-		nautilus.WithLogFormat(enums.LogFormatConsole),
-		nautilus.WithInterval(10*time.Second),
-		nautilus.WithAPI(true, 12911),
-		nautilus.WithMetrics(true),
-		nautilus.WithMaxConsecutiveFailures(3),
+	n, err := core.New(
+		core.WithConfigPath(configPath),
+		core.WithName(op.name),
+		core.WithDescription(op.description),
+		core.WithVersion("0.0.1"),
+		core.WithLogLevel(zerolog.LevelDebugValue),
+		core.WithLogFormat(enums.LogFormatConsole),
+		core.WithInterval(10*time.Second),
+		core.WithAPI(true, 12911),
+		core.WithMetrics(true),
+		core.WithMaxConsecutiveFailures(3),
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create Nautilus instance")
@@ -118,7 +117,7 @@ func (r *BasicOperator) Terminate(ctx context.Context) error {
 	return nil
 }
 
-var _ api.HealthCheck = (*BasicOperator)(nil)
+var _ interfaces.HealthCheck = (*BasicOperator)(nil)
 
 func (r *BasicOperator) Name() string {
 	return name

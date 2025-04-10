@@ -24,14 +24,6 @@ func Setup() {
 	}
 	zerolog.SetGlobalLevel(level)
 
-	// Configure console logger with colors
-	// if os.Getenv("NAUTILUS_LOGGING_FORMAT") != "json" {
-	// 	log.Logger = log.Output(zerolog.ConsoleWriter{
-	// 		Out:        DefaultOutput,
-	// 		TimeFormat: time.RFC3339,
-	// 	})
-	// }
-
 	// Add global fields
 	hostname, _ := os.Hostname()
 	log.Logger = log.With().
@@ -41,29 +33,6 @@ func Setup() {
 
 	// Add a caller skip to get proper file:line in logs
 	zerolog.CallerSkipFrameCount = 2
-}
-
-// SetupSentry initializes Sentry integration
-func SetupSentry(dsn, version, appName string) error {
-	// This is a placeholder - in a real implementation, you would
-	// integrate with the Sentry SDK
-
-	log.Info().
-		Str("dsn", maskSentryDSN(dsn)).
-		Str("version", version).
-		Str("app", appName).
-		Msg("Sentry integration enabled")
-
-	return nil
-}
-
-// maskSentryDSN masks a Sentry DSN for secure logging
-func maskSentryDSN(dsn string) string {
-	// Simple masking for demonstration
-	if len(dsn) < 8 {
-		return "***"
-	}
-	return dsn[:8] + "***"
 }
 
 // GetLogger returns a logger with the given component

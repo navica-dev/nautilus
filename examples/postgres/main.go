@@ -8,12 +8,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/navica-dev/nautilus"
-	"github.com/navica-dev/nautilus/internal/api"
+	"github.com/navica-dev/nautilus/core"
 	"github.com/navica-dev/nautilus/pkg/enums"
 	"github.com/navica-dev/nautilus/pkg/interfaces"
 	"github.com/navica-dev/nautilus/pkg/logging"
-	"github.com/navica-dev/nautilus/plugins"
+	plugin "github.com/navica-dev/nautilus/plugins/database"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -40,7 +39,7 @@ type PostgresOperator struct {
 	}
 
 	// Dependencies
-	pgPlugin *plugins.PostgresPlugin // This would normally be imported from a package
+	pgPlugin *plugin.PostgresPlugin // This would normally be imported from a package
 	metrics  *PostgresMetrics
 
 	// State
@@ -77,7 +76,7 @@ func main() {
 	}()
 
 	// Create PostgreSQL plugin
-	pgPlugin := plugins.NewPostgresPlugin(connString, 5, 5*time.Second)
+	pgPlugin := plugin.NewPostgresPlugin(connString, 5, 5*time.Second)
 
 	// Create metrics
 	metrics := NewPostgresMetrics()
@@ -93,18 +92,18 @@ func main() {
 	op.dbConfig.tableName = "products"
 
 	// Create Nautilus instance
-	n, err := nautilus.New(
-		nautilus.WithConfigPath(configPath),
-		nautilus.WithName(op.name),
-		nautilus.WithDescription(op.description),
-		nautilus.WithVersion("0.1.0"),
-		nautilus.WithLogLevel(zerolog.LevelDebugValue),
-		nautilus.WithLogFormat(enums.LogFormatConsole),
-		nautilus.WithInterval(1*time.Minute), // Run every minute
-		nautilus.WithAPI(true, 12911),
-		nautilus.WithMetrics(true),
-		nautilus.WithMaxConsecutiveFailures(3),
-		nautilus.WithPlugin(pgPlugin), // Register the PostgreSQL plugin
+	n, err := core.New(
+		core.WithConfigPath(configPath),
+		core.WithName(op.name),
+		core.WithDescription(op.description),
+		core.WithVersion("0.1.0"),
+		core.WithLogLevel(zerolog.LevelDebugValue),
+		core.WithLogFormat(enums.LogFormatConsole),
+		core.WithInterval(1*time.Minute), // Run every minute
+		core.WithAPI(true, 12911),
+		core.WithMetrics(true),
+		core.WithMaxConsecutiveFailures(3),
+		core.WithPlugin(pgPlugin), // Register the PostgreSQL plugin
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create Nautilus instance")
@@ -216,7 +215,7 @@ func (o *PostgresOperator) Terminate(ctx context.Context) error {
 }
 
 // Health check implementation
-var _ api.HealthCheck = (*PostgresOperator)(nil)
+var _ interfaces.HealthCheck = (*PostgresOperator)(nil)
 
 func (o *PostgresOperator) Name() string {
 	return name
