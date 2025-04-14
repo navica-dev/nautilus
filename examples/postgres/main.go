@@ -40,7 +40,6 @@ type PostgresOperator struct {
 
 	// Dependencies
 	pgPlugin *plugin.PostgresPlugin // This would normally be imported from a package
-	metrics  *PostgresMetrics
 
 	// State
 	runCount int
@@ -75,18 +74,25 @@ func main() {
 		cancel()
 	}()
 
-	// Create PostgreSQL plugin
-	pgPlugin := plugin.NewPostgresPlugin(connString, 5, 5*time.Second)
+	pgConfig := plugin.PostgresPluginConfig{
+		Operator: name,
+		ConnString: connString,
+		MaxRetries: 5,
+		RetryDelay: 5 * time.Second,
+		MaxConns: 25,
+		MinConns: 5,
+		MaxConnIdleTime: 1 * time.Minute,
+		MaxConnLifetime: 5 * time.Minute,
+	}
 
-	// Create metrics
-	metrics := NewPostgresMetrics()
+	// Create PostgreSQL plugin
+	pgPlugin := plugin.NewPostgresPlugin(&pgConfig, "")
 
 	// Create operator
 	op := &PostgresOperator{
 		name:        name,
 		description: "PostgreSQL database operator example",
 		pgPlugin:    pgPlugin,
-		metrics:     metrics,
 	}
 	op.dbConfig.connString = connString
 	op.dbConfig.tableName = "products"
@@ -99,7 +105,7 @@ func main() {
 		core.WithVersion("0.1.0"),
 		core.WithLogLevel(zerolog.LevelDebugValue),
 		core.WithLogFormat(enums.LogFormatConsole),
-		core.WithInterval(1*time.Minute), // Run every minute
+		core.WithInterval(5*time.Second),
 		core.WithAPI(true, 12911),
 		core.WithMetrics(true),
 		core.WithMaxConsecutiveFailures(3),
@@ -140,12 +146,10 @@ func (o *PostgresOperator) Run(ctx context.Context) error {
 	// 1. Fetch existing products
 	products, err := o.getAllProducts(ctx)
 	if err != nil {
-		o.metrics.operationErrors.WithLabelValues("get_all", "database_error").Inc()
 		return fmt.Errorf("failed to get products: %w", err)
 	}
 
 	log.Info().Int("product_count", len(products)).Msg("Retrieved products")
-	o.metrics.rowsProcessed.WithLabelValues("select").Add(float64(len(products)))
 
 	// 2. Create a new product (every 3rd run)
 	if o.runCount%3 == 0 {
@@ -156,12 +160,10 @@ func (o *PostgresOperator) Run(ctx context.Context) error {
 
 		id, err := o.createProduct(ctx, newProduct)
 		if err != nil {
-			o.metrics.operationErrors.WithLabelValues("create", "database_error").Inc()
 			return fmt.Errorf("failed to create product: %w", err)
 		}
 
 		log.Info().Int("id", id).Str("name", newProduct.Name).Msg("Created new product")
-		o.metrics.itemsCreated.WithLabelValues("product").Inc()
 	}
 
 	// 3. Update a product if we have any (every 5th run)
@@ -173,12 +175,10 @@ func (o *PostgresOperator) Run(ctx context.Context) error {
 
 		err := o.updateProduct(ctx, productToUpdate)
 		if err != nil {
-			o.metrics.operationErrors.WithLabelValues("update", "database_error").Inc()
 			return fmt.Errorf("failed to update product: %w", err)
 		}
 
 		log.Info().Int("id", productToUpdate.ID).Str("name", productToUpdate.Name).Msg("Updated product")
-		o.metrics.itemsUpdated.WithLabelValues("product").Inc()
 	}
 
 	// 4. Delete a product if we have more than 10 (every 7th run)
@@ -188,20 +188,10 @@ func (o *PostgresOperator) Run(ctx context.Context) error {
 
 		err := o.deleteProduct(ctx, productToDelete.ID)
 		if err != nil {
-			o.metrics.operationErrors.WithLabelValues("delete", "database_error").Inc()
 			return fmt.Errorf("failed to delete product: %w", err)
 		}
 
 		log.Info().Int("id", productToDelete.ID).Str("name", productToDelete.Name).Msg("Deleted product")
-		o.metrics.itemsDeleted.WithLabelValues("product").Inc()
-	}
-
-	// 5. Get connection stats for metrics
-	db := o.pgPlugin.GetDB()
-	if db != nil {
-		stats := db.Stats()
-		o.metrics.activeConnections.WithLabelValues("in_use").Set(float64(stats.InUse))
-		o.metrics.activeConnections.WithLabelValues("idle").Set(float64(stats.Idle))
 	}
 
 	return nil
@@ -240,11 +230,6 @@ func (o *PostgresOperator) HealthCheck(ctx context.Context) error {
 
 // ensureTableExists creates the products table if it doesn't exist
 func (o *PostgresOperator) ensureTableExists(ctx context.Context) error {
-	startTime := time.Now()
-	defer func() {
-		o.metrics.queryDuration.WithLabelValues("create_table").Observe(time.Since(startTime).Seconds())
-	}()
-
 	query := fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s (
 			id SERIAL PRIMARY KEY,
@@ -257,31 +242,21 @@ func (o *PostgresOperator) ensureTableExists(ctx context.Context) error {
 
 	_, err := o.pgPlugin.ExecuteCommand(ctx, query)
 	if err != nil {
-		o.metrics.queriesTotal.WithLabelValues("create_table", "error").Inc()
 		return err
 	}
 
-	o.metrics.queriesTotal.WithLabelValues("create_table", "success").Inc()
 	return nil
 }
 
 // getAllProducts retrieves all products from the database
 func (o *PostgresOperator) getAllProducts(ctx context.Context) ([]Product, error) {
-	startTime := time.Now()
-	defer func() {
-		o.metrics.queryDuration.WithLabelValues("select").Observe(time.Since(startTime).Seconds())
-	}()
-
 	query := fmt.Sprintf("SELECT id, name, price, created_at, updated_at FROM %s", o.dbConfig.tableName)
 
 	rows, err := o.pgPlugin.ExecuteQuery(ctx, query)
 	if err != nil {
-		o.metrics.queriesTotal.WithLabelValues("select", "error").Inc()
 		return nil, err
 	}
 	defer rows.Close()
-
-	o.metrics.queriesTotal.WithLabelValues("select", "success").Inc()
 
 	var products []Product
 	for rows.Next() {
@@ -301,11 +276,6 @@ func (o *PostgresOperator) getAllProducts(ctx context.Context) ([]Product, error
 
 // createProduct inserts a new product
 func (o *PostgresOperator) createProduct(ctx context.Context, product Product) (int, error) {
-	startTime := time.Now()
-	defer func() {
-		o.metrics.queryDuration.WithLabelValues("insert").Observe(time.Since(startTime).Seconds())
-	}()
-
 	query := fmt.Sprintf(
 		"INSERT INTO %s (name, price, created_at, updated_at) VALUES ($1, $2, NOW(), NOW()) RETURNING id",
 		o.dbConfig.tableName,
@@ -314,23 +284,14 @@ func (o *PostgresOperator) createProduct(ctx context.Context, product Product) (
 	var id int
 	err := o.pgPlugin.ExecuteQueryRow(ctx, query, product.Name, product.Price).Scan(&id)
 	if err != nil {
-		o.metrics.queriesTotal.WithLabelValues("insert", "error").Inc()
 		return 0, err
 	}
-
-	o.metrics.queriesTotal.WithLabelValues("insert", "success").Inc()
-	o.metrics.rowsProcessed.WithLabelValues("insert").Inc()
 
 	return id, nil
 }
 
 // updateProduct updates an existing product
 func (o *PostgresOperator) updateProduct(ctx context.Context, product Product) error {
-	startTime := time.Now()
-	defer func() {
-		o.metrics.queryDuration.WithLabelValues("update").Observe(time.Since(startTime).Seconds())
-	}()
-
 	query := fmt.Sprintf(
 		"UPDATE %s SET name = $1, price = $2, updated_at = NOW() WHERE id = $3",
 		o.dbConfig.tableName,
@@ -338,43 +299,28 @@ func (o *PostgresOperator) updateProduct(ctx context.Context, product Product) e
 
 	result, err := o.pgPlugin.ExecuteCommand(ctx, query, product.Name, product.Price, product.ID)
 	if err != nil {
-		o.metrics.queriesTotal.WithLabelValues("update", "error").Inc()
 		return err
 	}
 
 	if result == 0 {
-		o.metrics.queriesTotal.WithLabelValues("update", "not_found").Inc()
 		return fmt.Errorf("product with ID %d not found", product.ID)
 	}
-
-	o.metrics.queriesTotal.WithLabelValues("update", "success").Inc()
-	o.metrics.rowsProcessed.WithLabelValues("update").Add(float64(result))
 
 	return nil
 }
 
 // deleteProduct removes a product
 func (o *PostgresOperator) deleteProduct(ctx context.Context, id int) error {
-	startTime := time.Now()
-	defer func() {
-		o.metrics.queryDuration.WithLabelValues("delete").Observe(time.Since(startTime).Seconds())
-	}()
-
 	query := fmt.Sprintf("DELETE FROM %s WHERE id = $1", o.dbConfig.tableName)
 
 	result, err := o.pgPlugin.ExecuteCommand(ctx, query, id)
 	if err != nil {
-		o.metrics.queriesTotal.WithLabelValues("delete", "error").Inc()
 		return err
 	}
 
 	if result == 0 {
-		o.metrics.queriesTotal.WithLabelValues("delete", "not_found").Inc()
 		return fmt.Errorf("product with ID %d not found", id)
 	}
-
-	o.metrics.queriesTotal.WithLabelValues("delete", "success").Inc()
-	o.metrics.rowsProcessed.WithLabelValues("delete").Add(float64(result))
 
 	return nil
 }

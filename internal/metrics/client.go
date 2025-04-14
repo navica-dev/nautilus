@@ -204,7 +204,11 @@ func (c *Client) CreateCustomGauge(name, help string, labelNames ...string) *pro
 }
 
 // CreateCustomHistogram creates a custom histogram metric
-func (c *Client) CreateCustomHistogram(name, help string, buckets []float64, labelNames ...string) *prometheus.HistogramVec {
+func (c *Client) CreateCustomHistogram(
+	name, help string,
+	buckets []float64,
+	labelNames ...string,
+) *prometheus.HistogramVec {
 	if !c.config.Enabled || c.config.Prometheus == nil || !c.config.Prometheus.Enabled {
 		return nil
 	}
